@@ -1,3 +1,4 @@
+import __future__
 import matplotlib
 matplotlib.use('Agg')
 
@@ -26,8 +27,12 @@ parser.add_argument('--ncpu', type=int, default=8, help='Number of CPUs to use')
 args = parser.parse_args()
 
 def make_image(i,f):
-    img, hdr = fits.getdata(f, header=True)
-    img[img<1] = np.nan
+    if type(f) == str:
+        img, hdr = fits.getdata(f, header=True)
+    else:
+        img = f
+
+    #img[img<1] = np.nan
 
     if not args.nomag:
         img = np.log10(img)
@@ -63,19 +68,23 @@ def make_image(i,f):
     return 1
 
 if args.kepler:
-    print 'eeee'
+    data = fits.getdata(args.Target)
+    flux = data['FLUX'] + data['FLUX_BKG']
+    print(flux.shape)
+
+    res = Parallel(n_jobs=args.ncpu, verbose=10)([delayed(make_image)(i,f) for i,f in enumerate(flux)])
 
 else:
     files = np.sort(glob.glob(args.Target + '/*.fit*'))
-    print '%d files found!' % len(files)
+    print('%d files found!' % len(files))
 
     if not os.path.isdir('itmp'):
         os.makedirs('itmp')
 
     res = Parallel(n_jobs=args.ncpu, verbose=10)([delayed(make_image)(i,f) for i,f in enumerate(files)])
 
-    cmd     = shlex.split('ffmpeg -y -r 20 -i itmp/%%05d.png %s' % args.Output)
-    subprocess.call(cmd)
+cmd     = shlex.split('ffmpeg -y -r 20 -i itmp/%%05d.png %s' % args.Output)
+subprocess.call(cmd)
     #process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
     #for line in process.stdout:
     #    print line
